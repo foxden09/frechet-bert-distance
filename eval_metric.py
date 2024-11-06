@@ -72,10 +72,8 @@ def get_modern_embeddings(querys, answers, tokenizer, model, batch_size, use_cud
         batch_querys = querys[i:i + batch_size]
         batch_answers = answers[i:i + batch_size]
         
-        # Prepare input text
         texts = [q + tokenizer.sep_token + a for q, a in zip(batch_querys, batch_answers)]
         
-        # Tokenize
         inputs = tokenizer(texts, 
                          return_tensors="pt", 
                          padding=True, 
@@ -85,17 +83,17 @@ def get_modern_embeddings(querys, answers, tokenizer, model, batch_size, use_cud
         with torch.no_grad():
             if embedding_model == 'deberta':
                 outputs = model(**inputs)
-                embeddings = outputs.last_hidden_state[:, 0, :]  # [CLS] token
+                embeddings = outputs.last_hidden_state[:, 0, :]
             elif embedding_model == 'bart':
                 outputs = model(**inputs, output_hidden_states=True)
-                embeddings = outputs.encoder_last_hidden_state.mean(dim=1)  # Mean pooling
+                embeddings = outputs.encoder_last_hidden_state.mean(dim=1)
             elif embedding_model == 't5':
                 outputs = model(**inputs, output_hidden_states=True)
-                embeddings = outputs.last_hidden_state.mean(dim=1)  # Mean pooling
+                embeddings = outputs.last_hidden_state.mean(dim=1)
                 
-        all_embeddings.append(embeddings)
+        all_embeddings.append(embeddings.cpu())  # Move to CPU here
         
-    return torch.cat(all_embeddings, dim=0)
+    return torch.cat(all_embeddings, dim=0).numpy() 
     
 def read_mt_data(args):
     querys, refs, hyps, human_scores = [], [], [], []
@@ -255,8 +253,8 @@ def eval_metric(args):
                     system_scores.append(max_f1_score)
                 else:  # itm
                     scores = calculate_information_scores(
-                        source_embeddings=system_feats,
-                        target_embeddings=reference_feats,
+                        source_embeddings=system_feats,  # Now it's numpy array
+                        target_embeddings=reference_feats,  # Now it's numpy array
                         k=2, C=3
                     )
                     system_scores.append(scores['cross_entropy_ts'])
