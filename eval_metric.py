@@ -8,6 +8,7 @@ import bert_score
 from fbd_score import *
 from prd_score import *
 from baseline import cal_bleu, cal_meteor, cal_rouge, cal_greedy_match, cal_embd_average, cal_vec_extr
+from itm_score import calculate_information_scores, volume_of_unit_ball_log, cross_entropy, entropy
 import math
 from scipy.stats import spearmanr, pearsonr
 
@@ -170,6 +171,38 @@ def eval_metric(args):
                 recall = recall.tolist()
                 max_f1_score = max([2*p*r/(p+r + 1e-6) for p,r in zip(precision, recall)])
                 system_scores.append(max_f1_score)
+                
+        elif args.metric == 'itm':
+            source_querys = querys
+            source_answer_list = hyps
+            target_querys, target_answers = [], []
+            
+            # Prepare target data from references
+            for query, answers in zip(querys, refs):
+                for answer in answers:
+                    target_querys.append(query)
+                    target_answers.append(answer)
+                    
+            # Get embeddings for reference answers (target)
+            tokenizer, model = get_model_configs(args.model_type, args.is_chinese)
+            tgt_feats = get_embeddings(target_querys, target_answers, tokenizer, 
+                                      model, args.batch_size, use_cuda=True)
+            tgt_feats = tgt_feats.cpu().numpy()
+            
+            # Process each system's outputs
+            for source_answers in source_answer_list:
+                # Get embeddings for current system answers
+                src_feats = get_embeddings(source_querys, source_answers, tokenizer, 
+                                          model, args.batch_size, use_cuda=True)
+                src_feats = src_feats.cpu().numpy()
+                
+                # Calculate information theoretic scores
+                scores = calculate_information_scores(src_feats, tgt_feats, k=2, C=3)
+                
+                # Use average of the cross entropy differences as the final score
+                # You can modify this to use any of the returned scores
+                final_score = 0.5 * (scores['cross_entropy_ts'] + scores['cross_entropy_st'])
+                system_scores.append(final_score)
 
         else:
             raise NotImplementedError("We don't support the metric: {}".format(args.metric))
