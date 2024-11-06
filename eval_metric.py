@@ -113,7 +113,7 @@ def eval_metric(args):
     print("#-------------------------------------#")
     print(args.metric, args.model_type)
     print("#-------------------------------------#")
-    assert args.metric in ['rouge', 'meteor', 'greedy', 'average', 'extrema', 'bert_score', 'fbd', 'prd', 'bleu']
+    assert args.metric in ['rouge', 'meteor', 'greedy', 'average', 'extrema', 'bert_score', 'fbd', 'prd', 'bleu', 'itm']
     if args.metric == 'bert_score':
         for hyp in hyps:
             score = bert_score.score(hyp, refs, model_type=args.model_type, batch_size=args.batch_size)
