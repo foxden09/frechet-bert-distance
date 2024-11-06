@@ -17,18 +17,19 @@ def get_statistics(
     tokenizer, 
     model, 
     batch_size, 
-    use_cuda=True
+    use_cuda=True,
+    embedding_model='roberta'  # Add default parameter
 ):
-    feats = get_embeddings(
+    feats = get_modern_embeddings(
         querys, 
         answers, 
         tokenizer, 
         model, 
         batch_size, 
-        use_cuda
+        use_cuda,
+        embedding_model
     )
     return calculate_feature_statistics(feats)
-
 
 def calculate_fbd(
     source_querys,
@@ -38,18 +39,20 @@ def calculate_fbd(
     is_chinese,
     pretrained_model_path,
     batch_size,
-    device
+    device,
+    embedding_model='roberta'  # Add default parameter
 ):
-    tokenizer, model = get_model_configs(pretrained_model_path, is_chinese)
+    tokenizer, model = get_modern_model_configs(pretrained_model_path, embedding_model, is_chinese)
     print('get statistics from source data ...')
     mu1, sigma1 = get_statistics(source_querys, source_answers, tokenizer, model, 
-                                 batch_size, use_cuda=(device=='gpu'))
+                                batch_size, use_cuda=(device=='gpu'),
+                                embedding_model=embedding_model)
     print('get statistics from target data ...')
     mu2, sigma2 = get_statistics(target_querys, target_answers, tokenizer, model, 
-                                 batch_size, use_cuda=(device=='gpu'))
+                                batch_size, use_cuda=(device=='gpu'),
+                                embedding_model=embedding_model)
     print('calculate FBD score ...')
     score = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
-    #print('FBD score is {}'.format(score))
     return score
 
 def fbd_score(args):
@@ -60,9 +63,9 @@ def fbd_score(args):
         source_querys, source_answers, _, _ = read_dialogue(args.data_path)
         target_querys = copy.deepcopy(source_querys)
         target_answers = copy.deepcopy(source_answers)
-
+    
     print(len(source_querys), len(source_answers))
-
+    
     if args.transform:
         target_querys, target_answers = transform_qa_pairs(
             target_querys, 
@@ -72,16 +75,17 @@ def fbd_score(args):
             args.noise_dict, 
             args.repeat_dict
         )
-
+    
     return calculate_fbd(
         source_querys, 
         source_answers,
         target_querys,
         target_answers, 
         is_chinese=args.is_chinese,
-        pretrained_model_path=args.model_type, #args.pretrained_model_path,
+        pretrained_model_path=args.model_type,
         batch_size=args.batch_size,
-        device=args.device
+        device=args.device,
+        embedding_model=args.embedding_model  # Pass through the embedding model type
     )
 
 if __name__ == '__main__':
@@ -94,12 +98,15 @@ if __name__ == '__main__':
     parser.add_argument('--is_chinese', type=int, default=0, help='Is Chinese corpus or not')
     parser.add_argument('--pretrained_model_path', type=str, default=None, help='path to pretrained model path')
     parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--embedding_model', type=str, default='roberta', 
+                       choices=['roberta', 'deberta', 'bart', 't5'], 
+                       help='Type of embedding model to use')
     parser.add_argument('--transform', type=str, default=None, 
-                        help='transformation type for target pairs: [noise | mismatch | permutate | repeat]')
+                       help='transformation type for target pairs: [noise | mismatch | permutate | repeat]')
     parser.add_argument('--ratio', type=float, default=0.5, help='ratio of transformed pairs')
     parser.add_argument('--noise_dict', type=str, default=None, help='path to the noise dictionary')
     parser.add_argument('--repeat_dict', type=str, default=None, help='path to the repeatition dictionary')
     parser.add_argument('--device', type=str, default='cpu', help='[cpu | gpu]')
+    
     args = parser.parse_args()
-
     fbd_score(args)
