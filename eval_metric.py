@@ -201,7 +201,7 @@ def eval_metric(args):
                 
                 # Use average of the cross entropy differences as the final score
                 # You can modify this to use any of the returned scores
-                final_score = 0.5 * (scores['cross_entropy_ts'] + scores['cross_entropy_st'])
+                final_score = scores['cross_entropy_ts']
                 system_scores.append(final_score)
 
         else:
