@@ -11,7 +11,7 @@ from utils import (
   read_dialogue
 )
 
-from eval_metrics import (
+from eval_metric import (
   get_modern_embeddings,
   get_modern_model_configs
 )
