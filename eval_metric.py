@@ -23,6 +23,7 @@ parser.add_argument('--sample_num', type=int, default=10, help='sample number of
 parser.add_argument('--model_type', type=str, default='', help='pretrained model type or path to pretrained model')
 parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--is_chinese', type=int, default=0, help='Is Chinese corpus or not')
+parser.add_argument('--use_tukey_trans', type=int, default=0, help='Use Tukey transformation if specified')
 
 args = parser.parse_args()
 
