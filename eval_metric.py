@@ -8,7 +8,7 @@ import bert_score
 from fbd_score import *
 from prd_score import *
 from baseline import cal_bleu, cal_meteor, cal_rouge, cal_greedy_match, cal_embd_average, cal_vec_extr
-from itm_score import calculate_information_scores, volume_of_unit_ball_log, cross_entropy, entropy
+from pce import calculate_information_scores, volume_of_unit_ball_log, cross_entropy, entropy
 import math
 from scipy.stats import spearmanr, pearsonr
 
