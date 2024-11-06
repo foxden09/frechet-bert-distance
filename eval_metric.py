@@ -173,34 +173,33 @@ def eval_metric(args):
                 system_scores.append(max_f1_score)
                 
         elif args.metric == 'itm':
-            source_querys = querys
-            source_answer_list = hyps
-            target_querys, target_answers = [], []
-            
-            # Prepare target data from references
+            # References (ground truth)
+            reference_querys, reference_answers = [], []
             for query, answers in zip(querys, refs):
                 for answer in answers:
-                    target_querys.append(query)
-                    target_answers.append(answer)
+                    reference_querys.append(query)
+                    reference_answers.append(answer)
                     
-            # Get embeddings for reference answers (target)
+            # Get embeddings for references
             tokenizer, model = get_model_configs(args.model_type, args.is_chinese)
-            tgt_feats = get_embeddings(target_querys, target_answers, tokenizer, 
-                                      model, args.batch_size, use_cuda=True)
-            tgt_feats = tgt_feats.cpu().numpy()
+            reference_feats = get_embeddings(reference_querys, reference_answers, tokenizer, 
+                                           model, args.batch_size, use_cuda=True)
             
             # Process each system's outputs
-            for source_answers in source_answer_list:
+            for system_answers in hyps:
                 # Get embeddings for current system answers
-                src_feats = get_embeddings(source_querys, source_answers, tokenizer, 
-                                          model, args.batch_size, use_cuda=True)
-                src_feats = src_feats.cpu().numpy()
+                system_feats = get_embeddings(querys, system_answers, tokenizer, 
+                                            model, args.batch_size, use_cuda=True)
                 
                 # Calculate information theoretic scores
-                scores = calculate_information_scores(src_feats, tgt_feats, k=2, C=3)
+                scores = calculate_information_scores(
+                    source_embeddings=system_feats,    # System outputs being evaluated
+                    target_embeddings=reference_feats, # Reference embeddings as target
+                    k=2, 
+                    C=3
+                )
                 
-                # Use average of the cross entropy differences as the final score
-                # You can modify this to use any of the returned scores
+                # Calculate final score
                 final_score = scores['cross_entropy_ts']
                 system_scores.append(final_score)
 
