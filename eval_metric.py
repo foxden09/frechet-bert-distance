@@ -27,6 +27,7 @@ parser.add_argument('--is_chinese', type=int, default=0, help='Is Chinese corpus
 
 args = parser.parse_args()
 
+
 def read_mt_data(args):
     querys, refs, hyps, human_scores = [], [], [], []
 
@@ -94,6 +95,14 @@ def average(lists):
         lists[i] = [sum(lst) / len(lst) for lst in lists[i]]
     return lists
 
+def prepare_data(querys, refs):
+    target_querys, target_answers = [], []
+    for query, answers in zip(querys, refs):
+        for answer in answers:
+            target_querys.append(query)
+            target_answers.append(answer)
+    return target_querys, target_answers
+
 def eval_metric(args):
     if args.task_type == 'dialogue':
         querys, refs, hyps, human_scores = read_dialogue_data(args.data_path)
@@ -144,68 +153,46 @@ def eval_metric(args):
     else:
         source_querys = querys
         source_answer_list = hyps
-        target_querys, target_answers = [], []
-        for query, answers in zip(querys, refs):
-            for answer in answers:
-                target_querys.append(query)
-                target_answers.append(answer)
+        target_querys, target_answers = prepare_data(querys, refs)
         tokenizer, model = get_model_configs(args.model_type, args.is_chinese)
 
         if args.metric == 'fbd':
             mu1, sigma1 = get_statistics(target_querys, target_answers, tokenizer, 
-                                         model, args.batch_size, use_cuda=True)
-            for source_answers in source_answer_list:
-                mu2, sigma2 = get_statistics(source_querys, source_answers, tokenizer, 
-                                             model, args.batch_size, use_cuda=True)
-                score = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
-                system_scores.append(score)
-
-        elif args.metric == 'prd':
-            tgt_feats = get_embeddings(target_querys, target_answers, tokenizer, 
                                        model, args.batch_size, use_cuda=True)
             for source_answers in source_answer_list:
-                src_feats = get_embeddings(source_querys, source_answers, tokenizer, 
+                mu2, sigma2 = get_statistics(source_querys, source_answers, tokenizer, 
                                            model, args.batch_size, use_cuda=True)
-                precision, recall = compute_prd_from_embedding(src_feats, tgt_feats, enforce_balance=False)
+                score = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
+                system_scores.append(score)
+                
+        elif args.metric == 'prd':
+            reference_feats = get_embeddings(target_querys, target_answers, tokenizer, 
+                                           model, args.batch_size, use_cuda=True)
+            for source_answers in source_answer_list:
+                system_feats = get_embeddings(source_querys, source_answers, tokenizer, 
+                                            model, args.batch_size, use_cuda=True)
+                precision, recall = compute_prd_from_embedding(system_feats, reference_feats, enforce_balance=False)
                 precision = precision.tolist()
                 recall = recall.tolist()
                 max_f1_score = max([2*p*r/(p+r + 1e-6) for p,r in zip(precision, recall)])
                 system_scores.append(max_f1_score)
                 
         elif args.metric == 'itm':
-            # References (ground truth)
-            reference_querys, reference_answers = [], []
-            for query, answers in zip(querys, refs):
-                for answer in answers:
-                    reference_querys.append(query)
-                    reference_answers.append(answer)
-                    
-            # Get embeddings for references
-            tokenizer, model = get_model_configs(args.model_type, args.is_chinese)
-            reference_feats = get_embeddings(reference_querys, reference_answers, tokenizer, 
+            reference_feats = get_embeddings(target_querys, target_answers, tokenizer, 
                                            model, args.batch_size, use_cuda=True)
-            
-            # Process each system's outputs
-            for system_answers in hyps:
-                # Get embeddings for current system answers
-                system_feats = get_embeddings(querys, system_answers, tokenizer, 
+            for source_answers in source_answer_list:
+                system_feats = get_embeddings(source_querys, source_answers, tokenizer, 
                                             model, args.batch_size, use_cuda=True)
-                
-                # Calculate information theoretic scores
                 scores = calculate_information_scores(
-                    source_embeddings=system_feats,    # System outputs being evaluated
-                    target_embeddings=reference_feats, # Reference embeddings as target
-                    k=2, 
-                    C=3
+                    source_embeddings=system_feats,
+                    target_embeddings=reference_feats,
+                    k=2, C=3
                 )
-                
-                # Calculate final score
-                final_score = scores['cross_entropy_ts']
-                system_scores.append(final_score)
+                system_scores.append(scores['cross_entropy_ts'])
 
         else:
-            raise NotImplementedError("We don't support the metric: {}".format(args.metric))
-
+            raise NotImplementedError(f"We don't support the metric: {args.metric}")
+            
     pearson_corrs = []
     spearman_corrs = []
     print("SCORES")
