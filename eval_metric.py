@@ -208,7 +208,9 @@ def eval_metric(args):
 
     pearson_corrs = []
     spearman_corrs = []
+    print("SCORES")
     for scores in human_scores:
+        print(system_scores, scores)
         pearson_corrs.append(abs(pearsonr(system_scores, scores)[0]))
         spearman_corrs.append(abs(spearmanr(system_scores, scores)[0]))
     print('The pearson correlation between {} and human score is {}'.format(args.metric, pearson_corrs))
