@@ -5,12 +5,23 @@ import json
 import random
 import torch
 import bert_score
+from transformers import (
+    AutoModel, 
+    AutoTokenizer,
+    DebertaV3Model,
+    DebertaV3Tokenizer,
+    BartModel,
+    BartTokenizer,
+    T5Model,
+    T5Tokenizer
+)
 from fbd_score import *
 from prd_score import *
 from baseline import cal_bleu, cal_meteor, cal_rouge, cal_greedy_match, cal_embd_average, cal_vec_extr
 from pce import calculate_information_scores, volume_of_unit_ball_log, cross_entropy, entropy
 import math
 from scipy.stats import spearmanr, pearsonr
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--task_type', type=str, default='dialogue', help='[dialogue | mt]')
@@ -24,10 +35,68 @@ parser.add_argument('--sample_num', type=int, default=10, help='sample number of
 parser.add_argument('--model_type', type=str, default='', help='pretrained model type or path to pretrained model')
 parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--is_chinese', type=int, default=0, help='Is Chinese corpus or not')
-
+parser.add_argument('--embedding_model', type=str, default='roberta', 
+                   choices=['roberta', 'deberta', 'bart', 't5'], 
+                   help='Type of embedding model to use')
 args = parser.parse_args()
 
+def get_modern_model_configs(model_type, embedding_model, is_chinese):
+    if embedding_model == 'deberta':
+        model_name = "microsoft/deberta-v3-large"
+        tokenizer = DebertaV3Tokenizer.from_pretrained(model_name)
+        model = DebertaV3Model.from_pretrained(model_name)
+    elif embedding_model == 'bart':
+        model_name = "facebook/bart-large"
+        tokenizer = BartTokenizer.from_pretrained(model_name)
+        model = BartModel.from_pretrained(model_name)
+    elif embedding_model == 't5':
+        model_name = "t5-large"
+        tokenizer = T5Tokenizer.from_pretrained(model_name)
+        model = T5Model.from_pretrained(model_name)
+    else:  # default to roberta
+        return get_model_configs(model_type, is_chinese)
+    
+    return tokenizer, model
 
+def get_modern_embeddings(querys, answers, tokenizer, model, batch_size, use_cuda=True, embedding_model='roberta'):
+    if embedding_model == 'roberta':
+        return get_embeddings(querys, answers, tokenizer, model, batch_size, use_cuda)
+    
+    device = torch.device('cuda' if use_cuda and torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    model.eval()
+    
+    all_embeddings = []
+    
+    for i in range(0, len(querys), batch_size):
+        batch_querys = querys[i:i + batch_size]
+        batch_answers = answers[i:i + batch_size]
+        
+        # Prepare input text
+        texts = [q + tokenizer.sep_token + a for q, a in zip(batch_querys, batch_answers)]
+        
+        # Tokenize
+        inputs = tokenizer(texts, 
+                         return_tensors="pt", 
+                         padding=True, 
+                         truncation=True, 
+                         max_length=512).to(device)
+        
+        with torch.no_grad():
+            if embedding_model == 'deberta':
+                outputs = model(**inputs)
+                embeddings = outputs.last_hidden_state[:, 0, :]  # [CLS] token
+            elif embedding_model == 'bart':
+                outputs = model(**inputs, output_hidden_states=True)
+                embeddings = outputs.encoder_last_hidden_state.mean(dim=1)  # Mean pooling
+            elif embedding_model == 't5':
+                outputs = model(**inputs, output_hidden_states=True)
+                embeddings = outputs.last_hidden_state.mean(dim=1)  # Mean pooling
+                
+        all_embeddings.append(embeddings)
+        
+    return torch.cat(all_embeddings, dim=0)
+    
 def read_mt_data(args):
     querys, refs, hyps, human_scores = [], [], [], []
 
@@ -154,41 +223,43 @@ def eval_metric(args):
         source_querys = querys
         source_answer_list = hyps
         target_querys, target_answers = prepare_data(querys, refs)
-        tokenizer, model = get_model_configs(args.model_type, args.is_chinese)
+        tokenizer, model = get_modern_model_configs(args.model_type, args.embedding_model, args.is_chinese)
 
         if args.metric == 'fbd':
             mu1, sigma1 = get_statistics(target_querys, target_answers, tokenizer, 
-                                       model, args.batch_size, use_cuda=True)
+                                       model, args.batch_size, use_cuda=True,
+                                       embedding_model=args.embedding_model)
             for source_answers in source_answer_list:
                 mu2, sigma2 = get_statistics(source_querys, source_answers, tokenizer, 
-                                           model, args.batch_size, use_cuda=True)
+                                           model, args.batch_size, use_cuda=True,
+                                           embedding_model=args.embedding_model)
                 score = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
                 system_scores.append(score)
                 
-        elif args.metric == 'prd':
-            reference_feats = get_embeddings(target_querys, target_answers, tokenizer, 
-                                           model, args.batch_size, use_cuda=True)
+        elif args.metric in ['prd', 'itm']:
+            reference_feats = get_modern_embeddings(target_querys, target_answers, tokenizer, 
+                                                  model, args.batch_size, use_cuda=True,
+                                                  embedding_model=args.embedding_model)
+            
             for source_answers in source_answer_list:
-                system_feats = get_embeddings(source_querys, source_answers, tokenizer, 
-                                            model, args.batch_size, use_cuda=True)
-                precision, recall = compute_prd_from_embedding(system_feats, reference_feats, enforce_balance=False)
-                precision = precision.tolist()
-                recall = recall.tolist()
-                max_f1_score = max([2*p*r/(p+r + 1e-6) for p,r in zip(precision, recall)])
-                system_scores.append(max_f1_score)
+                system_feats = get_modern_embeddings(source_querys, source_answers, tokenizer, 
+                                                   model, args.batch_size, use_cuda=True,
+                                                   embedding_model=args.embedding_model)
                 
-        elif args.metric == 'itm':
-            reference_feats = get_embeddings(target_querys, target_answers, tokenizer, 
-                                           model, args.batch_size, use_cuda=True)
-            for source_answers in source_answer_list:
-                system_feats = get_embeddings(source_querys, source_answers, tokenizer, 
-                                            model, args.batch_size, use_cuda=True)
-                scores = calculate_information_scores(
-                    source_embeddings=system_feats,
-                    target_embeddings=reference_feats,
-                    k=2, C=3
-                )
-                system_scores.append(scores['cross_entropy_st'])
+                if args.metric == 'prd':
+                    precision, recall = compute_prd_from_embedding(system_feats, reference_feats, 
+                                                                 enforce_balance=False)
+                    precision = precision.tolist()
+                    recall = recall.tolist()
+                    max_f1_score = max([2*p*r/(p+r + 1e-6) for p,r in zip(precision, recall)])
+                    system_scores.append(max_f1_score)
+                else:  # itm
+                    scores = calculate_information_scores(
+                        source_embeddings=system_feats,
+                        target_embeddings=reference_feats,
+                        k=2, C=3
+                    )
+                    system_scores.append(scores['cross_entropy_ts'])
 
         else:
             raise NotImplementedError(f"We don't support the metric: {args.metric}")
