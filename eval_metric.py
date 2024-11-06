@@ -188,7 +188,7 @@ def eval_metric(args):
                     target_embeddings=reference_feats,
                     k=2, C=3
                 )
-                system_scores.append(scores['cross_entropy_ts'])
+                system_scores.append(scores['cross_entropy_st'])
 
         else:
             raise NotImplementedError(f"We don't support the metric: {args.metric}")
