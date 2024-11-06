@@ -8,8 +8,8 @@ import bert_score
 from transformers import (
     AutoModel, 
     AutoTokenizer,
-    DebertaV3Model,
-    DebertaV3Tokenizer,
+    DebertaModel,  # Changed from DebertaV3Model
+    DebertaTokenizer,  # Changed from DebertaV3Tokenizer
     BartModel,
     BartTokenizer,
     T5Model,
@@ -42,9 +42,9 @@ args = parser.parse_args()
 
 def get_modern_model_configs(model_type, embedding_model, is_chinese):
     if embedding_model == 'deberta':
-        model_name = "microsoft/deberta-v3-large"
-        tokenizer = DebertaV3Tokenizer.from_pretrained(model_name)
-        model = DebertaV3Model.from_pretrained(model_name)
+        model_name = "microsoft/deberta-base"  # Changed to base model
+        tokenizer = DebertaTokenizer.from_pretrained(model_name)
+        model = DebertaModel.from_pretrained(model_name)
     elif embedding_model == 'bart':
         model_name = "facebook/bart-large"
         tokenizer = BartTokenizer.from_pretrained(model_name)
