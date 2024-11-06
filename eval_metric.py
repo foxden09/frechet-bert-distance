@@ -200,7 +200,7 @@ def eval_metric(args):
                 )
                 
                 # Calculate final score
-                final_score = scores['cross_entropy_ts']
+                final_score = scores['cross_entropy_st']
                 system_scores.append(final_score)
 
         else:
