@@ -198,7 +198,7 @@ def eval_metric(args):
                 scores = calculate_information_scores(
                     source_embeddings=system_feats,    # System outputs being evaluated
                     target_embeddings=reference_feats, # Reference embeddings as target
-                    k=1, 
+                    k=2, 
                     C=3
                 )
                 
