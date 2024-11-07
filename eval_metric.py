@@ -67,13 +67,11 @@ def read_dialogue_data(path):
             line = json.loads(line)
             querys.append(line['src'])
             refs.append(line['refs'])
-            print("batch")
+            print(line['hyps'])
             for i, hyp in enumerate(line['hyps']):
-                print(hyp)
                 while len(hyps) <= i:
                     hyps.append([])
                 hyps[i].append(hyp)
-            print(len(hyp), len(hyp[0]))
             for i, scores in enumerate(line['human_scores']):
                 if len(human_scores) < i + 1:
                     human_scores.append([])
