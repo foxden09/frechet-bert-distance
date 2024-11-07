@@ -147,7 +147,7 @@ def eval_metric(args):
         target_querys, target_answers = [], []
         for query, answers in zip(querys, refs):
             for answer in answers:
-                print(query, answer)
+                print(query)
                 target_querys.append(query)
                 target_answers.append(answer)
         tokenizer, model = get_model_configs(args.model_type, args.is_chinese)
