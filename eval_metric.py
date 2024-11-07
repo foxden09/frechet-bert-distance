@@ -153,6 +153,8 @@ def eval_metric(args):
         tokenizer, model = get_model_configs(args.model_type, args.is_chinese)
 
         if args.metric == 'fbd':
+            print("target", len(target_querys), len(target_answers))
+            print("source", len(source_querys), len(source_answers))
             mu1, sigma1 = get_statistics(target_querys, target_answers, tokenizer, 
                                          model, args.batch_size, use_cuda=True)
             for source_answers in source_answer_list:
