@@ -159,7 +159,7 @@ def eval_metric(args):
             for source_answers in source_answer_list:
                 print("source", len(source_querys), len(source_answers))
                 #mu2, sigma2 = get_statistics(source_querys, source_answers, tokenizer, 
-                                             model, args.batch_size, use_cuda=True)
+                #                             model, args.batch_size, use_cuda=True)
                 #score = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
                 #system_scores.append(score)
 
