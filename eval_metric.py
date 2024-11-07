@@ -69,7 +69,6 @@ def read_dialogue_data(path):
             refs.append(line['refs'])
 
             for i, hyp in enumerate(line['hyps']):
-                print(hyp)
                 while len(hyps) <= i:
                     hyps.append([])
                 hyps[i].append(hyp)
