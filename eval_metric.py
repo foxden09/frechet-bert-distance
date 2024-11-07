@@ -70,7 +70,7 @@ def read_dialogue_data(path):
 
             for i, hyp in enumerate(line['hyps']):
                 print(hyp)
-                if len(hyps) < i + 1:
+                while len(hyps) <= i:
                     hyps.append([])
                 hyps[i].append(hyp)
 
@@ -78,7 +78,7 @@ def read_dialogue_data(path):
                 if len(human_scores) < i + 1:
                     human_scores.append([])
                 for j, score in enumerate(scores):
-                    if len(human_scores[i]) < j + 1:
+                    while len(human_scores[i]) <= j:
                         human_scores[i].append([])
                     human_scores[i][j].append(score)
     
